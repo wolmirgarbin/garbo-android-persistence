@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import android.content.ContentValues;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import br.com.garbo.persistence.android.core.Cache;
@@ -178,5 +179,23 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 			myStmt.bindLong(indexToStatement, (Integer) param);
 		else if( param instanceof byte[] )
 			myStmt.bindBlob(indexToStatement, (byte[]) param);
+	}
+	
+	
+	public List<E> query(String sql, RowMapper<E> mapRow, String... selectArgs) throws GarboPersistenceException {
+		try { 
+			Cursor cursor = getDataBase().rawQuery(sql, selectArgs);
+			List<E> toReturn = new ArrayList<E>();
+			
+			int count = cursor.getCount();
+			cursor.moveToFirst();
+			for (int rowNum = 0; rowNum < count; rowNum++) {
+				toReturn.add(mapRow.mapRow(cursor, rowNum));
+				cursor.moveToNext();
+			}
+			return toReturn;
+		} catch(Exception e) {
+			throw new GarboPersistenceException(e.getMessage());
+		}
 	}
 }
