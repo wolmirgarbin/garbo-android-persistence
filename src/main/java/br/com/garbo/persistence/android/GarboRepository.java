@@ -2,19 +2,17 @@ package br.com.garbo.persistence.android;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import android.content.ContentValues;
+
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import br.com.garbo.persistence.android.core.Cache;
 import br.com.garbo.persistence.android.core.CacheEntity;
 import br.com.garbo.persistence.android.core.CacheEntityField;
-import br.com.garbo.persistence.android.core.MethodReflection;
 import br.com.garbo.persistence.android.core.SQLCreate;
 
 public abstract class GarboRepository<E extends Serializable, PK extends Serializable> {
@@ -74,15 +72,51 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 	}
 	
 	private void update(List<E> lsEntity) {
-		
 		if( verifyList(lsEntity) ) 
 			return;
 		
 		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
 		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.update(cacheEntity));
 		
-		for (E entity : lsEntity) {
+		if (!database.inTransaction())
+			database.beginTransaction();
+		
+		try {
+			for(Object entity : lsEntity) {
+				int qtdColumn = cacheEntity.getFields().size();
+				CacheEntityField columnId = null;
+				int index = 0;
+				for(; index < qtdColumn; index++ ) {
+					final CacheEntityField column = cacheEntity.getFields().get(index);
+					
+					if( column.isId() ) {
+						columnId = column;
+					} else {
+						Method meth = entity.getClass().getMethod( column.getMethodGet() );  
+						Object param = meth.invoke(entity);
+	
+						int indexToStatement = index + 1;
+						addValuesInStmtForType(stmt, param, indexToStatement);
+					}
+				}
+				
+				// Coloca o id no statement
+				Method meth = entity.getClass().getMethod( columnId.getMethodGet() );  
+				Object param = meth.invoke(entity);
+
+				int indexToStatement = index + 1;
+				addValuesInStmtForType(stmt, param, indexToStatement);
+				
+				stmt.executeInsert();
+			}
 			
+			database.setTransactionSuccessful();
+			
+		} catch(Exception e) {
+			throw new GarboPersistenceException(e.getMessage());
+		} finally {
+			stmt.close();
+			database.endTransaction();
 		}
 	}
 	
@@ -98,28 +132,60 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 	}
 	
 	public void delete(List<E> lsEntity) {
-		
 		if( verifyList(lsEntity) ) 
 			return;
 		
 		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
 		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.delete(cacheEntity));
 		
-		for (E entity : lsEntity) {
+		if (!database.inTransaction())
+			database.beginTransaction();
+		
+		try {
+			for(Object entity : lsEntity) {
+				int qtdColumn = cacheEntity.getFields().size();
+
+				for(int index = 0; index < qtdColumn; index++ ) {
+					final CacheEntityField column = cacheEntity.getFields().get(index);
+					if( column.isId() ) {
+						// Coloca o id no statement
+						Method meth = entity.getClass().getMethod( column.getMethodGet() );  
+						Object param = meth.invoke(entity);
+
+						addValuesInStmtForType(stmt, param, 0);
+						
+						break;
+					}
+				}
+				
+				stmt.executeInsert();
+			}
 			
+			database.setTransactionSuccessful();
+			
+		} catch(Exception e) {
+			throw new GarboPersistenceException(e.getMessage());
+		} finally {
+			stmt.close();
+			database.endTransaction();
 		}
 	}
 	
-	public int count() {
-		return 0;
+	
+	public long count(Class<E> clazz) {
+		CacheEntity cacheEntity = Cache.getInstance().get( clazz );
+		Cursor cursor = getDataBase().rawQuery(SQLCreate.selectCount(cacheEntity), null);
+		cursor.moveToFirst();
+		return cursor.getLong(cursor.getColumnIndex("QTD"));
 	}
 	
-	public E findById(PK id) {
+	
+	public <E> E findById(Class<E> clazz, PK id) {
 		
 		return null;
 	}
 	
-	public <T> List<E> findAll(Class<T> clazz) {
+	public <E> List<E> findAll(Class<E> clazz) {
 		CacheEntity cacheEntity = Cache.getInstance().get(clazz);
 		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.update(cacheEntity));
 		

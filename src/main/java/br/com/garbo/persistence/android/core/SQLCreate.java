@@ -61,6 +61,7 @@ public class SQLCreate {
 		for (CacheEntityField field : cacheEntity.getFields()) {
 			if( field.isId() ) {
 				sql.append( field.getColumnName() ).append("=?");
+				break;
 			}
 		}
 		
@@ -81,6 +82,14 @@ public class SQLCreate {
 		
 		sql.append( fields.toString() ).append(" FROM ").append( cacheEntity.getTableName() );
 		
+		return sql.toString();
+	}
+
+
+
+	public static String selectCount(CacheEntity cacheEntity) {
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT count(*) as QTD FROM ").append( cacheEntity.getTableName() );
 		return sql.toString();
 	}
 	
