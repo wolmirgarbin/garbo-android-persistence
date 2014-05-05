@@ -35,7 +35,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 			return;
 		
 		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
-		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.insert(cacheEntity));
+		SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.insert(cacheEntity));
 		
 		if (!database.inTransaction())
 			database.beginTransaction();
@@ -64,6 +64,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 		} finally {
 			stmt.close();
 			database.endTransaction();
+			database.close();
 		}
 	}
 	
@@ -76,7 +77,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 			return;
 		
 		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
-		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.update(cacheEntity));
+		SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.update(cacheEntity));
 		
 		if (!database.inTransaction())
 			database.beginTransaction();
@@ -117,6 +118,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 		} finally {
 			stmt.close();
 			database.endTransaction();
+			database.close();
 		}
 	}
 	
@@ -136,7 +138,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 			return;
 		
 		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
-		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.delete(cacheEntity));
+		SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.delete(cacheEntity));
 		
 		if (!database.inTransaction())
 			database.beginTransaction();
@@ -168,13 +170,14 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 		} finally {
 			stmt.close();
 			database.endTransaction();
+			database.close();
 		}
 	}
 	
 	
 	public long count(Class<E> clazz) {
 		CacheEntity cacheEntity = Cache.getInstance().get( clazz );
-		Cursor cursor = getDataBase().rawQuery(SQLCreate.selectCount(cacheEntity), null);
+		Cursor cursor = getDatabaseReadable().rawQuery(SQLCreate.selectCount(cacheEntity), null);
 		cursor.moveToFirst();
 		return cursor.getLong(cursor.getColumnIndex("QTD"));
 	}
@@ -187,7 +190,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 	
 	public <E> List<E> findAll(Class<E> clazz) {
 		CacheEntity cacheEntity = Cache.getInstance().get(clazz);
-		SQLiteStatement stmt = getDataBase().compileStatement(SQLCreate.update(cacheEntity));
+		SQLiteStatement stmt = getDatabaseReadable().compileStatement(SQLCreate.update(cacheEntity));
 		
 		
 		return new ArrayList<E>();
@@ -211,8 +214,19 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 	 * Get data base writable
 	 * @return
 	 */
-	public SQLiteDatabase getDataBase() {
-		if( database == null )
+	public SQLiteDatabase getDatabaseReadable() {
+		if( (database == null || !database.isOpen()) || (database != null && database.isOpen() && !database.inTransaction()))
+			database = garboDatabaseHelper.getReadableDatabase();
+			
+		return database;
+	}
+	
+	/**
+	 * Get data base writable
+	 * @return
+	 */
+	public SQLiteDatabase getDatabaseWritable() {
+		if( (database == null || !database.isOpen()) || (database != null && database.isOpen() && !database.inTransaction()))
 			database = garboDatabaseHelper.getWritableDatabase();
 			
 		return database;
@@ -250,7 +264,7 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 	
 	public List<E> query(String sql, RowMapper<E> mapRow, String... selectArgs) throws GarboPersistenceException {
 		try { 
-			Cursor cursor = getDataBase().rawQuery(sql, selectArgs);
+			Cursor cursor = getDatabaseReadable().rawQuery(sql, selectArgs);
 			List<E> toReturn = new ArrayList<E>();
 			
 			int count = cursor.getCount();
