@@ -10,10 +10,7 @@ import java.util.List;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
-import br.com.garbo.persistence.android.core.Cache;
-import br.com.garbo.persistence.android.core.CacheEntity;
-import br.com.garbo.persistence.android.core.CacheEntityField;
-import br.com.garbo.persistence.android.core.SQLCreate;
+import br.com.garbo.persistence.android.core.*;
 
 public abstract class GarboRepository<E extends Serializable, PK extends Serializable> {
 
@@ -23,157 +20,103 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 	public GarboRepository(GarboDatabaseHelper garboDatabaseHelper) {
 		this.garboDatabaseHelper = garboDatabaseHelper;
 	}
-	
-	
+
 	public void insert(E entity) {
 		insert(Arrays.asList(entity));
 	}
-	
-	public void insert(List<E> lsEntity) {
-		
-		if( verifyList(lsEntity) ) 
-			return;
-		
-		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
-		SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.insert(cacheEntity));
-		
-		if (!database.inTransaction())
-			database.beginTransaction();
-		
-		try {
-			for(Object entity : lsEntity) {
-				int qtdColumn = cacheEntity.getFields().size();
-				for(int index = 0; index < qtdColumn; index++ ) {
-					final CacheEntityField column = cacheEntity.getFields().get(index);
-					
-					//Property property = cache.getPropertyByColumn(column.getFieldName());
-					Method meth = entity.getClass().getMethod( column.getMethodGet() );  
-					Object param = meth.invoke(entity);
 
-					int indexToStatement = index + 1;
-					addValuesInStmtForType(stmt, param, indexToStatement);
-				}
-				
-				stmt.executeInsert();
-			}
-			
-			database.setTransactionSuccessful();
-			
-		} catch(Exception e) {
-			throw new GarboPersistenceException(e.getMessage());
-		} finally {
-			stmt.close();
-			database.endTransaction();
-			database.close();
-		}
-	}
-	
-	public void update(E entity) {
-		update(Arrays.asList(entity));
-	}
-	
-	private void update(List<E> lsEntity) {
-		if( verifyList(lsEntity) ) 
-			return;
-		
-		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
-		SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.update(cacheEntity));
-		
-		if (!database.inTransaction())
-			database.beginTransaction();
-		
-		try {
-			for(Object entity : lsEntity) {
-				int qtdColumn = cacheEntity.getFields().size();
-				CacheEntityField columnId = null;
-				int index = 0;
-				for(; index < qtdColumn; index++ ) {
-					final CacheEntityField column = cacheEntity.getFields().get(index);
-					
-					if( column.isId() ) {
-						columnId = column;
-					} else {
-						Method meth = entity.getClass().getMethod( column.getMethodGet() );  
-						Object param = meth.invoke(entity);
-	
-						int indexToStatement = index + 1;
-						addValuesInStmtForType(stmt, param, indexToStatement);
-					}
-				}
-				
-				// Coloca o id no statement
-				Method meth = entity.getClass().getMethod( columnId.getMethodGet() );  
-				Object param = meth.invoke(entity);
+    public void insert(List<E> lsEntity) {
+        new DefaultTransaction(lsEntity, Operation.INSERT) {
+            @Override
+            public void execute(Object entity, CacheEntity cacheEntity, SQLiteStatement stmt) throws Exception {
+                int qtdColumn = cacheEntity.getFields().size();
+                for(int index = 0; index < qtdColumn; index++ ) {
+                    final CacheEntityField column = cacheEntity.getFields().get(index);
 
-				int indexToStatement = index + 1;
-				addValuesInStmtForType(stmt, param, indexToStatement);
-				
-				stmt.executeInsert();
-			}
-			
-			database.setTransactionSuccessful();
-			
-		} catch(Exception e) {
-			throw new GarboPersistenceException(e.getMessage());
-		} finally {
-			stmt.close();
-			database.endTransaction();
-			database.close();
-		}
-	}
-	
-	public E merge(E entity) {
-		// verificar e pegar o id, se estiver diferente de null update ou insere
-		
-		
-		return entity;
-	}
-	
-	public void delete(E entity) {
-		delete(Arrays.asList(entity));
-	}
-	
-	public void delete(List<E> lsEntity) {
-		if( verifyList(lsEntity) ) 
-			return;
-		
-		CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
-		SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.delete(cacheEntity));
-		
-		if (!database.inTransaction())
-			database.beginTransaction();
-		
-		try {
-			for(Object entity : lsEntity) {
-				int qtdColumn = cacheEntity.getFields().size();
+                    //Property property = cache.getPropertyByColumn(column.getFieldName());
+                    Method meth = entity.getClass().getMethod( column.getMethodGet() );
+                    Object param = meth.invoke(entity);
 
-				for(int index = 0; index < qtdColumn; index++ ) {
-					final CacheEntityField column = cacheEntity.getFields().get(index);
-					if( column.isId() ) {
-						// Coloca o id no statement
-						Method meth = entity.getClass().getMethod( column.getMethodGet() );  
-						Object param = meth.invoke(entity);
+                    int indexToStatement = index + 1;
+                    addValuesInStmtForType(stmt, param, indexToStatement);
+                }
 
-						addValuesInStmtForType(stmt, param, 0);
-						
-						break;
-					}
-				}
-				
-				stmt.executeInsert();
-			}
-			
-			database.setTransactionSuccessful();
-			
-		} catch(Exception e) {
-			throw new GarboPersistenceException(e.getMessage());
-		} finally {
-			stmt.close();
-			database.endTransaction();
-			database.close();
-		}
-	}
-	
+                stmt.executeInsert();
+            }
+        };
+    }
+
+    public void update(E entity) {
+        update(Arrays.asList(entity));
+    }
+
+    private void update(List<E> lsEntity) {
+        new DefaultTransaction(lsEntity, Operation.UPDATE) {
+            @Override
+            public void execute(Object entity, CacheEntity cacheEntity, SQLiteStatement stmt) throws Exception {
+                int qtdColumn = cacheEntity.getFields().size();
+                CacheEntityField columnId = null;
+                int index = 0;
+                for(; index < qtdColumn; index++ ) {
+                    final CacheEntityField column = cacheEntity.getFields().get(index);
+
+                    if( column.isId() ) {
+                        columnId = column;
+                    } else {
+                        Method meth = entity.getClass().getMethod( column.getMethodGet() );
+                        Object param = meth.invoke(entity);
+
+                        int indexToStatement = index + 1;
+                        addValuesInStmtForType(stmt, param, indexToStatement);
+                    }
+                }
+
+                // Coloca o id no statement
+                Method meth = entity.getClass().getMethod( columnId.getMethodGet() );
+                Object param = meth.invoke(entity);
+
+                int indexToStatement = index + 1;
+                addValuesInStmtForType(stmt, param, indexToStatement);
+
+                stmt.executeInsert();
+            }
+        };
+    }
+
+    public E merge(E entity) {
+        // verificar e pegar o id, se estiver diferente de null update ou insere
+
+
+        return entity;
+    }
+
+    public void delete(E entity) {
+        delete(Arrays.asList(entity));
+    }
+
+    public void delete(List<E> lsEntity) {
+        new DefaultTransaction(lsEntity, Operation.DELETE) {
+            @Override
+            public void execute(Object entity, CacheEntity cacheEntity, SQLiteStatement stmt) throws Exception {
+                int qtdColumn = cacheEntity.getFields().size();
+
+                for(int index = 0; index < qtdColumn; index++ ) {
+                    final CacheEntityField column = cacheEntity.getFields().get(index);
+                    if( column.isId() ) {
+                        // Coloca o id no statement
+                        Method meth = entity.getClass().getMethod( column.getMethodGet() );
+                        Object param = meth.invoke(entity);
+
+                        addValuesInStmtForType(stmt, param, 0);
+
+                        break;
+                    }
+                }
+
+                stmt.executeInsert();
+            }
+        };
+    }
 	
 	public long count(Class<E> clazz) {
 		CacheEntity cacheEntity = Cache.getInstance().get( clazz );
@@ -181,7 +124,6 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 		cursor.moveToFirst();
 		return cursor.getLong(cursor.getColumnIndex("QTD"));
 	}
-	
 	
 	public <E> E findById(Class<E> clazz, PK id) {
 		
@@ -200,7 +142,6 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 		
 		return new ArrayList<E>();
 	}
-	
 	
 	/**
 	 * Close databaseHelper
@@ -278,4 +219,47 @@ public abstract class GarboRepository<E extends Serializable, PK extends Seriali
 			throw new GarboPersistenceException(e.getMessage());
 		}
 	}
+
+    public abstract class DefaultTransaction {
+
+        private final List<E> lsEntity;
+
+        private final Operation operation;
+
+        public DefaultTransaction(List<E> lsEntity, Operation operation) {
+            this.lsEntity = lsEntity;
+            this.operation = operation;
+        }
+
+        public void execute() {
+            if( verifyList(lsEntity) )
+                return;
+
+            CacheEntity cacheEntity = Cache.getInstance().get( lsEntity.get(0).getClass() );
+            SQLiteStatement stmt = getDatabaseWritable().compileStatement(SQLCreate.getQueryByOperation(operation, cacheEntity));
+
+            if (!database.inTransaction())
+                database.beginTransaction();
+
+            try {
+                for(Object entity : lsEntity) {
+                    execute(entity, cacheEntity, stmt);
+                }
+            } catch(Exception e) {
+                throw new GarboPersistenceException(e.getMessage());
+            } finally {
+                stmt.close();
+                database.endTransaction();
+                database.close();
+            }
+
+        }
+
+        private boolean verifyList(List<E> ls) {
+            return ls == null || ls.isEmpty();
+        }
+
+        public abstract void execute(Object entity, CacheEntity cacheEntity, SQLiteStatement stmt) throws Exception;
+
+    }
 }

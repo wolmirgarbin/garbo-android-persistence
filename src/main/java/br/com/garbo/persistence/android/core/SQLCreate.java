@@ -2,6 +2,23 @@ package br.com.garbo.persistence.android.core;
 
 public class SQLCreate {
 
+    public static String getQueryByOperation(Operation operation, CacheEntity cacheEntity) {
+        switch (operation) {
+            case DELETE:
+                return SQLCreate.delete(cacheEntity);
+            case UPDATE:
+                return SQLCreate.update(cacheEntity);
+            case INSERT:
+                return SQLCreate.update(cacheEntity);
+            case SELECT:
+                return SQLCreate.selectAll(cacheEntity);
+            case COUNT:
+                return SQLCreate.selectCount(cacheEntity);
+            default:
+                return null;
+        }
+    }
+
 	public static String insert(CacheEntity cacheEntity){
 		StringBuilder sql = new StringBuilder("INSERT INTO ");
 		StringBuilder fields = new StringBuilder("");
