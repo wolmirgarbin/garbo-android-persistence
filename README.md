@@ -1,7 +1,9 @@
 # Garbo Android Persistence
-Projeto que auxilia no desenvolvimento de aplicações android que utilizam banco de dados SQLite para persistencia.
+ORM para Android que auxilia o desenvolvimento de aplicações android que utilizam banco de dados SQLite para persistência.
 
-O projeto é focado na performance da aplicação.
+É um projeto simples com objetivo de simplificar o desenvolvimento de aplicações aproveitando o conhecimento que os desenvolvedores java possuem de Hibernate, Mapeamento Relacional e Spring JDBC.
+
+
 
 
 # Download, Maven ou Gradle
